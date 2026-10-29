@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(lightmap LANGUAGES CXX)
+find_package(glfw3 CONFIG REQUIRED)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(lightmap src/main.cpp "include/vec3.h")
+target_link_libraries(lightmap PRIVATE glfw)
 target_include_directories(lightmap PRIVATE include)

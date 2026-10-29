@@ -1,3 +1,5 @@
+#include<GLFW/glfw3.h>
+
 #include<iostream>
 #include<cassert>
 #include<cmath>
@@ -11,5 +13,7 @@ int main() {
 	assert(std::abs(length(normalize({ 2,0,0 })) - 1.0) < 1e-12);
 	Ray r{ {0,0,0},{0,0,1} };
 	assert(r.at(2.5).z == 2.5);
+	glfwInit();
+	glfwTerminate();
 	std::cout << "tests passed\n";
 }
