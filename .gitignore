@@ -71,3 +71,4 @@ build/
 out/
 CMakeUserPresets.json
 *.user
+PLAN.md
