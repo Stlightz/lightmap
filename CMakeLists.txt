@@ -28,6 +28,6 @@ if(NOT glfw3_FOUND)
     FetchContent_MakeAvailable(glfw)
 endif()
 
-add_executable(lightmap src/main.cpp include/vec3.h)
+add_executable(lightmap src/main.cpp include/vec3.h "include/ray.h" "include/triangle.h")
 target_include_directories(lightmap PRIVATE include)
 target_link_libraries(lightmap PRIVATE glfw OpenGL::GL)

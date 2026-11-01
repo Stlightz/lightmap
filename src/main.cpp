@@ -1,23 +1,64 @@
-#include<GLFW/glfw3.h>
+#include <GLFW/glfw3.h>
 
-#include<vector>
-#include<iostream>
-#include<cassert>
-#include<cmath>
+#include <cstdint>
+#include <limits>
+#include <vector>
+
 #include "vec3.h"
+#include "ray.h"
+#include "triangle.h"
 
 constexpr int W = 800;
 constexpr int H = 600;
 
-void render(std::vector<uint8_t>& fb) {
-	for (int y = 0; y < H; ++y) {
-		for (int x = 0; x < W; ++x) {
-			uint8_t* p = &fb[(y * W + x) * 3];
-			p[0] = static_cast<uint8_t>(255 * x / W);
-			p[1] = static_cast<uint8_t>(255 * y / H);
-			p[2] = 128;
-		}
-	}
+
+static void addQuad(std::vector<Triangle>& tris, Vec3 a, Vec3 b, Vec3 c, Vec3 d) {
+    tris.push_back({ a, b, c });
+    tris.push_back({ a, c, d });
+}
+
+static std::vector<Triangle> buildRoom() {
+    std::vector<Triangle> t;
+    addQuad(t, { -2, 0,   0 }, { 2, 0,   0 }, { 2, 0,  -4 }, { -2, 0,  -4 });  
+    addQuad(t, { -2, 2.8, 0 }, { -2, 2.8, -4 }, { 2, 2.8, -4 }, { 2, 2.8, 0 }); 
+    addQuad(t, { -2, 0,  -4 }, { 2, 0,  -4 }, { 2, 2.8, -4 }, { -2, 2.8, -4 }); 
+    addQuad(t, { -2, 0,   0 }, { -2, 0,  -4 }, { -2, 2.8, -4 }, { -2, 2.8, 0 });  
+    addQuad(t, { 2, 0,  -4 }, { 2, 0,   0 }, { 2, 2.8, 0 }, { 2, 2.8, -4 });  
+    return t;
+}
+
+static void render(std::vector<uint8_t>& fb, const Camera& cam,
+    const std::vector<Triangle>& tris) {
+    for (int y = 0; y < H; ++y) {
+        for (int x = 0; x < W; ++x) {
+            double s = (x + 0.5) / W;
+            double t = 1.0 - (y + 0.5) / H;    
+            Ray r = cam.get_ray(s, t);
+
+            double closest = std::numeric_limits<double>::infinity();
+            Hit best;
+            bool any = false;
+            for (const Triangle& tri : tris) {
+                Hit h;
+                if (intersect(r, tri, 1e-4, closest, h)) {
+                    closest = h.t;
+                    best = h;
+                    any = true;
+                }
+            }
+
+            uint8_t* p = &fb[(y * W + x) * 3];
+            if (any) {
+
+                p[0] = static_cast<uint8_t>(255.0 * 0.5 * (best.normal.x + 1.0));
+                p[1] = static_cast<uint8_t>(255.0 * 0.5 * (best.normal.y + 1.0));
+                p[2] = static_cast<uint8_t>(255.0 * 0.5 * (best.normal.z + 1.0));
+            }
+            else {
+                p[0] = p[1] = p[2] = 0;
+            }
+        }
+    }
 }
 
 int main() {
@@ -41,11 +82,14 @@ int main() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, W, H, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
 
+
+    std::vector<Triangle> scene = buildRoom();
+    Camera cam({ 0, 1.5, -0.2 }, { 0, 1.2, -4 }, { 0, 1, 0 }, 80.0, double(W) / H);
+    render(fb, cam, scene);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGB, GL_UNSIGNED_BYTE, fb.data());
+
     while (!glfwWindowShouldClose(win)) {
         glfwPollEvents();
-
-        render(fb);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGB, GL_UNSIGNED_BYTE, fb.data());
 
         int fw, fh;
         glfwGetFramebufferSize(win, &fw, &fh);
@@ -68,5 +112,3 @@ int main() {
     glfwTerminate();
     return 0;
 }
-
- 
