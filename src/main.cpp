@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <limits>
 #include <vector>
+#include <cmath>
+#include <algorithm>
 
 #include "vec3.h"
 #include "ray.h"
@@ -49,10 +51,17 @@ static void render(std::vector<uint8_t>& fb, const Camera& cam,
 
             uint8_t* p = &fb[(y * W + x) * 3];
             if (any) {
+                Vec3 lightPos{ 0, 2, -2 };
+                double I = 100.0;
 
-                p[0] = static_cast<uint8_t>(255.0 * 0.5 * (best.normal.x + 1.0));
-                p[1] = static_cast<uint8_t>(255.0 * 0.5 * (best.normal.y + 1.0));
-                p[2] = static_cast<uint8_t>(255.0 * 0.5 * (best.normal.z + 1.0));
+                Vec3 to = lightPos - best.p;
+                double d = length(to);
+                double c = std::max(0.0, dot(best.normal, to / d));
+                double E = I * c / (d * d);
+
+                double v = 1.0 - std::exp(-0.04 * E);
+                uint8_t g = static_cast<uint8_t>(255.0 * v);
+                p[0] = p[1] = p[2] = g;
             }
             else {
                 p[0] = p[1] = p[2] = 0;

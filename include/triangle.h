@@ -8,6 +8,7 @@ struct Triangle {
 
 struct Hit {
     double t = 0;
+    Vec3 p;
     Vec3 normal;
 };
 
@@ -37,6 +38,7 @@ inline bool intersect(const Ray& r, const Triangle& tri,
     if (dot(n, r.dir) > 0.0) n = -n;           
 
     hit.t = t;
+    hit.p = r.at(t);
     hit.normal = n;
     return true;
 }
