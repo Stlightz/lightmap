@@ -5,6 +5,8 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <atomic>
+#include <thread>
 
 #include "vec3.h"
 #include "ray.h"
@@ -19,55 +21,88 @@ static void addQuad(std::vector<Triangle>& tris, Vec3 a, Vec3 b, Vec3 c, Vec3 d)
     tris.push_back({ a, c, d });
 }
 
+static void addBox(std::vector<Triangle>& t, Vec3 mn, Vec3 mx) {
+    Vec3 a{ mn.x, mn.y, mn.z }, b{ mx.x, mn.y, mn.z }, c{ mx.x, mx.y, mn.z }, d{ mn.x, mx.y, mn.z };
+    Vec3 e{ mn.x, mn.y, mx.z }, f{ mx.x, mn.y, mx.z }, g{ mx.x, mx.y, mx.z }, h{ mn.x, mx.y, mx.z };
+    addQuad(t, a, b, c, d);  // z min
+    addQuad(t, e, f, g, h);  // z max
+    addQuad(t, a, e, h, d);  // x min
+    addQuad(t, b, f, g, c);  // x max
+    addQuad(t, a, b, f, e);  // y min
+    addQuad(t, d, c, g, h);  // y max
+}
+
 static std::vector<Triangle> buildRoom() {
     std::vector<Triangle> t;
     addQuad(t, { -2, 0,   0 }, { 2, 0,   0 }, { 2, 0,  -4 }, { -2, 0,  -4 });  
     addQuad(t, { -2, 2.8, 0 }, { -2, 2.8, -4 }, { 2, 2.8, -4 }, { 2, 2.8, 0 }); 
     addQuad(t, { -2, 0,  -4 }, { 2, 0,  -4 }, { 2, 2.8, -4 }, { -2, 2.8, -4 }); 
     addQuad(t, { -2, 0,   0 }, { -2, 0,  -4 }, { -2, 2.8, -4 }, { -2, 2.8, 0 });  
-    addQuad(t, { 2, 0,  -4 }, { 2, 0,   0 }, { 2, 2.8, 0 }, { 2, 2.8, -4 });  
+    addQuad(t, { 2, 0,  -4 }, { 2, 0,   0 }, { 2, 2.8, 0 }, { 2, 2.8, -4 }); 
+    addBox(t, { -1.0, 0, -3.0 }, { -0.2, 0.8, -2.2 });
     return t;
+}
+
+static bool occluded(const Ray& r, const std::vector<Triangle>& tris, double tmax) {
+    Hit h;
+    for (const Triangle& tri : tris)
+        if (intersect(r, tri, 1e-4, tmax, h)) return true;
+    return false;
+}
+
+static void renderRow(int y, std::vector<uint8_t>& fb, const Camera& cam,
+    const std::vector<Triangle>& tris) {
+    const Vec3 lightPos{ 0, 2, -2 };
+    const double I = 100.0;
+
+    for (int x = 0; x < W; ++x) {
+        double s = (x + 0.5) / W;
+        double t = 1.0 - (y + 0.5) / H;
+        Ray r = cam.get_ray(s, t);
+
+        double closest = std::numeric_limits<double>::infinity();
+        Hit best;
+        bool any = false;
+        for (const Triangle& tri : tris) {
+            Hit h;
+            if (intersect(r, tri, 1e-4, closest, h)) {
+                closest = h.t;
+                best = h;
+                any = true;
+            }
+        }
+
+        uint8_t* p = &fb[(y * W + x) * 3];
+        if (!any) { p[0] = p[1] = p[2] = 0; continue; }
+
+        Vec3 to = lightPos - best.p;
+        double d = length(to);
+        Vec3 L = to / d;
+
+        double E = 0.0;
+        if (!occluded(Ray{ best.p, L }, tris, d - 1e-4)) {
+            double c = std::max(0.0, dot(best.normal, L));
+            E = I * c / (d * d);
+        }
+
+        double v = 1.0 - std::exp(-0.04 * E);
+        p[0] = p[1] = p[2] = static_cast<uint8_t>(255.0 * v);
+    }
 }
 
 static void render(std::vector<uint8_t>& fb, const Camera& cam,
     const std::vector<Triangle>& tris) {
-    for (int y = 0; y < H; ++y) {
-        for (int x = 0; x < W; ++x) {
-            double s = (x + 0.5) / W;
-            double t = 1.0 - (y + 0.5) / H;    
-            Ray r = cam.get_ray(s, t);
+    std::atomic<int> nextRow{ 0 };
+    unsigned n = std::max(1u, std::thread::hardware_concurrency());
 
-            double closest = std::numeric_limits<double>::infinity();
-            Hit best;
-            bool any = false;
-            for (const Triangle& tri : tris) {
-                Hit h;
-                if (intersect(r, tri, 1e-4, closest, h)) {
-                    closest = h.t;
-                    best = h;
-                    any = true;
-                }
-            }
+    auto worker = [&] {
+        for (int y; (y = nextRow.fetch_add(1)) < H; )
+            renderRow(y, fb, cam, tris);
+        };
 
-            uint8_t* p = &fb[(y * W + x) * 3];
-            if (any) {
-                Vec3 lightPos{ 0, 2, -2 };
-                double I = 100.0;
-
-                Vec3 to = lightPos - best.p;
-                double d = length(to);
-                double c = std::max(0.0, dot(best.normal, to / d));
-                double E = I * c / (d * d);
-
-                double v = 1.0 - std::exp(-0.04 * E);
-                uint8_t g = static_cast<uint8_t>(255.0 * v);
-                p[0] = p[1] = p[2] = g;
-            }
-            else {
-                p[0] = p[1] = p[2] = 0;
-            }
-        }
-    }
+    std::vector<std::thread> pool;
+    for (unsigned i = 0; i < n; ++i) pool.emplace_back(worker);
+    for (auto& th : pool) th.join();
 }
 
 int main() {
