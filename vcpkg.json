@@ -1,5 +1,11 @@
 {
   "name": "lightmap",
   "version-string": "0.1.0",
-  "dependencies": ["glfw3"]
+  "dependencies": [
+    "glfw3",
+    {
+      "name": "imgui",
+      "features": [ "glfw-binding", "opengl2-binding" ]
+    }
+  ]
 }

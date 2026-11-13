@@ -12,6 +12,10 @@
 #include "ray.h"
 #include "triangle.h"
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl2.h"
+
 constexpr int W = 800;
 constexpr int H = 600;
 

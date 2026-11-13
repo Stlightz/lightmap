@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenGL REQUIRED)
-target_link_libraries(lightmap PRIVATE glfw OpenGL::GL imgui::imgui)
 
 # 1) пробуем найти уже установленный glfw (vcpkg, системный пакет, conan и т.д.)
 find_package(glfw3 3.3 CONFIG QUIET)
@@ -29,6 +28,30 @@ if(NOT glfw3_FOUND)
     FetchContent_MakeAvailable(glfw)
 endif()
 
-add_executable(lightmap src/main.cpp include/vec3.h "include/ray.h" "include/triangle.h")
+# Dear ImGui (скачиваем и собираем сами)
+include(FetchContent)
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG        v1.91.5
+    GIT_SHALLOW    ON
+)
+FetchContent_MakeAvailable(imgui)
+
+add_library(imgui_lib STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl2.cpp
+)
+target_include_directories(imgui_lib PUBLIC
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
+)
+target_link_libraries(imgui_lib PUBLIC glfw OpenGL::GL)
+
+add_executable(lightmap src/main.cpp include/vec3.h include/ray.h include/triangle.h)
 target_include_directories(lightmap PRIVATE include)
-target_link_libraries(lightmap PRIVATE glfw OpenGL::GL)
+target_link_libraries(lightmap PRIVATE glfw OpenGL::GL imgui_lib)
