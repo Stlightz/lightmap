@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenGL REQUIRED)
+target_link_libraries(lightmap PRIVATE glfw OpenGL::GL imgui::imgui)
 
 # 1) пробуем найти уже установленный glfw (vcpkg, системный пакет, conan и т.д.)
 find_package(glfw3 3.3 CONFIG QUIET)
