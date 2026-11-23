@@ -120,6 +120,13 @@ int main() {
     glfwMakeContextCurrent(win);
     glfwSwapInterval(1);
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForOpenGL(win, true);
+    ImGui_ImplOpenGL2_Init();
+
     std::vector<uint8_t> fb(W * H * 3);
 
     GLuint tex;
@@ -139,6 +146,25 @@ int main() {
     while (!glfwWindowShouldClose(win)) {
         glfwPollEvents();
 
+        ImGui_ImplOpenGL2_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::Begin("Light settings");
+
+        ImGui::Text("Light source");
+
+        static float lightX = 0.0f;
+        static float lightY = 2.0f;
+        static float lightZ = -2.0f;
+
+        ImGui::SliderFloat("X", &lightX, -5.0f, 5.0f);
+        ImGui::SliderFloat("Y", &lightY, 0.0f, 5.0f);
+        ImGui::SliderFloat("Z", &lightZ, -5.0f, 5.0f);
+
+        ImGui::End();
+        ImGui::Render();
+
         int fw, fh;
         glfwGetFramebufferSize(win, &fw, &fh);
         glViewport(0, 0, fw, fh);
@@ -151,6 +177,8 @@ int main() {
         glTexCoord2f(1, 0); glVertex2f(1, 1);
         glTexCoord2f(0, 0); glVertex2f(-1, 1);
         glEnd();
+
+        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(win);
     }
