@@ -1,6 +1,6 @@
 #pragma once
 #include <cmath>
-#include "vec3.h"
+#include "math\vec3.h"
 
 struct Ray {
     Vec3 orig;
