@@ -18,6 +18,11 @@
 constexpr int W = 800;
 constexpr int H = 600;
 
+constexpr int PREVIEW_W = W / 2;
+constexpr int PREVIEW_H = H / 2;
+
+
+
 int main() {
     // Инициализация GLFW
     if (!glfwInit())
@@ -60,6 +65,36 @@ int main() {
 
     // OpenGL texture
     GLuint tex;
+
+    // Preview texture
+    GLuint previewTex;
+
+    glGenTextures(1, &previewTex);
+    glBindTexture(GL_TEXTURE_2D, previewTex);
+
+    glTexParameteri(
+        GL_TEXTURE_2D,
+        GL_TEXTURE_MIN_FILTER,
+        GL_LINEAR
+    );
+
+    glTexParameteri(
+        GL_TEXTURE_2D,
+        GL_TEXTURE_MAG_FILTER,
+        GL_LINEAR
+    );
+
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGB,
+        PREVIEW_W,
+        PREVIEW_H,
+        0,
+        GL_RGB,
+        GL_UNSIGNED_BYTE,
+        nullptr
+    );
 
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
@@ -106,6 +141,12 @@ int main() {
 
     // Рендерер
     Renderer renderer(W, H);
+    // Превью
+    Renderer previewRenderer(PREVIEW_W, PREVIEW_H);
+
+    std::vector<uint8_t> previewFb(
+        PREVIEW_W * PREVIEW_H * 3
+    );
 
     // Параметры интерфейса
     float lightPosition[3] = {
@@ -131,6 +172,8 @@ int main() {
         fb.data()
     );
 
+
+    bool previewVisible = false;
     // Главный цикл
     while (!glfwWindowShouldClose(win)) {
         glfwPollEvents();
@@ -153,6 +196,9 @@ int main() {
             5.0f
         );
 
+        bool positionActive = ImGui::IsItemActive();
+        bool positionFinished = ImGui::IsItemDeactivatedAfterEdit();
+
         bool intensityChanged = ImGui::SliderFloat(
             "Intensity (cd)",
             &lightIntensity,
@@ -160,22 +206,54 @@ int main() {
             1000.0f
         );
 
-        bool imageNeedsUpdate =
-            positionChanged || intensityChanged;
+        bool intensityActive = ImGui::IsItemActive();
+        bool intensityFinished = ImGui::IsItemDeactivatedAfterEdit();
 
-        if (imageNeedsUpdate) {
-            light.position = Vec3{
-                lightPosition[0],
-                lightPosition[1],
-                lightPosition[2]
-            };
+        // Обновляем параметры света
+        light.position = Vec3{
+            lightPosition[0],
+            lightPosition[1],
+            lightPosition[2]
+        };
 
-            light.intensity = lightIntensity;
+        light.intensity = lightIntensity;
 
-            // Пересчёт сцены
+        bool previewActive = positionActive || intensityActive;
+
+        bool previewChanged =
+            (positionChanged || intensityChanged) && previewActive;
+
+        bool editFinished =
+            positionFinished || intensityFinished;
+
+        // Preview
+        if (previewChanged) {
+            previewRenderer.render(
+                previewFb,
+                cam,
+                scene,
+                light
+            );
+
+            glBindTexture(GL_TEXTURE_2D, previewTex);
+
+            glTexSubImage2D(
+                GL_TEXTURE_2D,
+                0, 0, 0,
+                PREVIEW_W,
+                PREVIEW_H,
+                GL_RGB,
+                GL_UNSIGNED_BYTE,
+                previewFb.data()
+
+            );
+            previewVisible = true;
+        }
+
+        // Final render
+        if (editFinished) {
             renderer.render(fb, cam, scene, light);
 
-            // Обновление текстуры
             glBindTexture(GL_TEXTURE_2D, tex);
 
             glTexSubImage2D(
@@ -186,6 +264,7 @@ int main() {
                 GL_UNSIGNED_BYTE,
                 fb.data()
             );
+            previewVisible = false;
         }
 
         ImGui::Separator();
@@ -205,7 +284,13 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, tex);
+
+      
+
+        glBindTexture(
+            GL_TEXTURE_2D,
+            previewVisible ? previewTex : tex
+        );
 
         glBegin(GL_QUADS);
 
@@ -239,6 +324,7 @@ int main() {
     ImGui::DestroyContext();
 
     glDeleteTextures(1, &tex);
+    glDeleteTextures(1, &previewTex);
 
     glfwDestroyWindow(win);
     glfwTerminate();
